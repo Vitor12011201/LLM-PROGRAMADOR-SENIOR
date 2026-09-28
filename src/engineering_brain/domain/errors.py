@@ -48,3 +48,35 @@ class MediaInspectorOutputError(MediaInspectionError):
 
 class RepositoryError(RegistryError):
     """The persistence adapter could not complete an operation."""
+
+
+class AudioSelectionError(RegistryError):
+    """An inspected artifact cannot yield the requested audio selection."""
+
+
+class NoAudioStreamError(AudioSelectionError):
+    """The inspected media contains no audio stream."""
+
+
+class AmbiguousAudioSelectionError(AudioSelectionError):
+    """More than one audio stream requires an explicit selection."""
+
+
+class InvalidAudioSelectionError(AudioSelectionError):
+    """An inspection cannot be used with the requested source artifact."""
+
+
+class InvalidAudioStreamError(AudioSelectionError):
+    """The explicitly selected stream is not an audio stream."""
+
+
+class AudioExtractionError(RegistryError):
+    """Deterministic audio extraction could not complete safely."""
+
+
+class TranscriptionError(RegistryError):
+    """A transcription engine could not complete a run."""
+
+
+class InvalidTranscriptionResultError(TranscriptionError):
+    """A transcriber returned inconsistent structured output."""

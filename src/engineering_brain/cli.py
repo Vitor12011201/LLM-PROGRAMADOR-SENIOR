@@ -7,13 +7,15 @@ from typing import Sequence
 
 from engineering_brain.application.source_registry import SourceRegistryService
 from engineering_brain.application.media_inspection import MediaInspectionService
+from engineering_brain.application.audio_pipeline import AudioPipelineService
 from engineering_brain.config import Settings
 from engineering_brain.domain.errors import RegistryError, ValidationError
 from engineering_brain.domain.models import (
-    ArtifactObservationRecord, ArtifactVerification, AudioStream, Author, MediaInspection, Material, MaterialRecord, Source, SourceArtifact,
+    ArtifactObservationRecord, ArtifactVerification, AudioSelection, AudioStream, Author, DerivedAudioArtifact, MediaInspection, Material, MaterialRecord, Source, SourceArtifact,
     SubtitleStream, VideoStream,
 )
 from engineering_brain.infrastructure.ffprobe_media_inspector import FfprobeMediaInspector
+from engineering_brain.infrastructure.ffmpeg_audio_extractor import FfmpegAudioExtractor
 from engineering_brain.infrastructure.local_artifact_store import LocalArtifactStore
 from engineering_brain.infrastructure.sqlite_source_registry import SqliteSourceRegistryRepository
 
@@ -28,7 +30,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         artifact_store = LocalArtifactStore(settings.artifact_dir)
         service = SourceRegistryService(repository, artifact_store)
         media_service = MediaInspectionService(repository, artifact_store, FfprobeMediaInspector())
-        result = _dispatch(arguments, service, media_service)
+        audio_service = AudioPipelineService(repository, artifact_store, FfmpegAudioExtractor())
+        result = _dispatch(arguments, service, media_service, audio_service)
     except RegistryError as exc:
         parser.error(str(exc))
         return 2
@@ -83,11 +86,25 @@ def _parser() -> argparse.ArgumentParser:
     media_inspect.add_argument("--artifact-id", required=True)
     media_show = media_commands.add_parser("show")
     media_show.add_argument("--artifact-id", required=True)
+
+    audio = top.add_parser("audio")
+    audio_commands = audio.add_subparsers(dest="action", required=True)
+    audio_select = audio_commands.add_parser("select")
+    audio_select.add_argument("--artifact-id", required=True)
+    audio_select.add_argument("--inspection-id", required=True)
+    audio_select.add_argument("--stream-index", type=int)
+    audio_selection_show = audio_commands.add_parser("selection-show")
+    audio_selection_show.add_argument("--id", required=True)
+    audio_derive = audio_commands.add_parser("derive")
+    audio_derive.add_argument("--selection-id", required=True)
+    audio_derived_show = audio_commands.add_parser("derived-show")
+    audio_derived_show.add_argument("--id", required=True)
     return parser
 
 
 def _dispatch(
-    arguments: argparse.Namespace, service: SourceRegistryService, media_service: MediaInspectionService
+    arguments: argparse.Namespace, service: SourceRegistryService, media_service: MediaInspectionService,
+    audio_service: AudioPipelineService,
 ) -> dict[str, object]:
     if arguments.entity == "author":
         return _author_to_dict(service.register_author(arguments.name, _metadata(arguments.metadata)))
@@ -107,6 +124,22 @@ def _dispatch(
             result["reused_existing_inspection"] = reused
             return result
         return _inspection_to_dict(media_service.show_latest(arguments.artifact_id))
+    if arguments.entity == "audio":
+        if arguments.action == "select":
+            selection, reused = audio_service.select_audio(
+                arguments.artifact_id, arguments.inspection_id, arguments.stream_index
+            )
+            result = _audio_selection_to_dict(selection)
+            result["reused_existing_selection"] = reused
+            return result
+        if arguments.action == "selection-show":
+            return _audio_selection_to_dict(audio_service.show_audio_selection(arguments.id))
+        if arguments.action == "derive":
+            derived, reused = audio_service.derive_audio(arguments.selection_id)
+            result = _derived_audio_to_dict(derived)
+            result["reused_existing_derivation"] = reused
+            return result
+        return _derived_audio_to_dict(audio_service.show_derived_audio(arguments.id))
     if arguments.action == "add":
         return _material_to_dict(
             service.register_material(
@@ -227,6 +260,33 @@ def _audio_stream_to_dict(stream: AudioStream) -> dict[str, object]:
 def _subtitle_stream_to_dict(stream: SubtitleStream) -> dict[str, object]:
     return {"index": stream.index, "codec": stream.codec, "is_default": stream.is_default,
             "language": stream.language}
+
+
+def _audio_selection_to_dict(selection: AudioSelection) -> dict[str, object]:
+    return {
+        "id": selection.id,
+        "source_artifact_id": selection.source_artifact_id,
+        "media_inspection_id": selection.media_inspection_id,
+        "stream_index": selection.stream_index,
+        "policy": selection.policy,
+        "reason": selection.reason,
+        "selected_at": selection.selected_at.isoformat(),
+    }
+
+
+def _derived_audio_to_dict(derived: DerivedAudioArtifact) -> dict[str, object]:
+    return {
+        "id": derived.id,
+        "audio_selection_id": derived.audio_selection_id,
+        "managed_artifact": derived.managed_key,
+        "sha256": derived.sha256,
+        "byte_size": derived.byte_size,
+        "extractor": derived.extractor,
+        "extractor_version": derived.extractor_version,
+        "derivation_schema_version": derived.derivation_schema_version,
+        "config": json.loads(derived.config_json),
+        "created_at": derived.created_at.isoformat(),
+    }
 
 
 def _record_to_dict(record: MaterialRecord) -> dict[str, object]:

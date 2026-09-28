@@ -2,17 +2,22 @@
 
 Engineering Brain is a local-first foundation for turning technical sources into a
 traceable engineering knowledge pipeline. The current baseline is intentionally
-deterministic: it preserves source evidence and records technical media observations
-without using an LLM, transcription, or semantic interpretation.
+deterministic: it preserves source evidence, records technical media observations,
+and derives canonical audio without semantic interpretation or model inference.
 
-Implemented phases: Source Registry, managed content-addressed artifact storage,
-and Media Inspection V1 with `ffprobe`.
+Implemented foundation: Source Registry, managed content-addressed artifact storage,
+provenance-aware `SourceArtifact` / `ArtifactObservation`, deterministic Media
+Inspection V1 with `ffprobe`, explicit audio-stream selection, and deterministic
+canonical WAV derivation with `ffmpeg`. `DerivedAudioArtifact` preserves derivation
+provenance; the transcription domain and persistence schema are prepared separately.
+
+Real speech-to-text inference is not implemented yet. Phase 3A does not download or
+execute machine-learning models.
 
 ## Run locally
 
-The target runtime is **Python >=3.12,<3.13**. The current host validation used
-Python 3.14 because Python 3.12 is not installed there yet; Python 3.12 validation
-remains pending. The project has no third-party Python runtime dependencies.
+The target runtime is **Python >=3.12,<3.13**. The current validation environment is
+Python 3.12.14. The project has no third-party Python runtime dependencies.
 
 Create an isolated environment with Python 3.12:
 
@@ -37,11 +42,29 @@ managed blob while retaining separate origins; repeating the same Material, byte
 and original location is idempotent.
 
 If `ffprobe` is available locally, managed audio and video artifacts can be
-inspected deterministically. Inspection metadata is persisted separately from the
-source evidence; it does not transcribe or interpret the media.
+inspected deterministically. `ffmpeg` can derive a selected managed audio stream as
+WAV / PCM signed 16-bit little-endian / mono / 16 kHz. Inspection metadata and
+derived audio remain separate from source evidence; neither operation transcribes or
+interprets media.
 
-`ffmpeg` is optional and is only useful for generating local test media. Neither
-tool is installed or managed by this project.
+`ffprobe` and `ffmpeg` are environment tools: neither is installed or managed by this
+project.
+
+The provenance boundary is intentionally explicit:
+
+```text
+SourceArtifact
+→ MediaInspection
+→ AudioSelection
+→ DerivedAudioArtifact
+→ TranscriptionRun
+→ Transcript
+→ TranscriptSegment
+```
+
+`SourceArtifact != DerivedAudioArtifact != TranscriptionRun != Transcript !=
+Interpretation != Knowledge`. `TranscriptionRun` and transcript records are only a
+foundation at this stage; no real ASR engine is connected.
 
 ## Minimal flow
 
@@ -59,6 +82,11 @@ PYTHONPATH=src .venv/bin/python -m engineering_brain material show --id <materia
 PYTHONPATH=src .venv/bin/python -m engineering_brain artifact verify --id <artifact-id>
 PYTHONPATH=src .venv/bin/python -m engineering_brain media inspect --artifact-id <artifact-id>
 PYTHONPATH=src .venv/bin/python -m engineering_brain media show --artifact-id <artifact-id>
+PYTHONPATH=src .venv/bin/python -m engineering_brain audio select \
+  --artifact-id <artifact-id> --inspection-id <inspection-id> [--stream-index <global-stream-index>]
+PYTHONPATH=src .venv/bin/python -m engineering_brain audio selection-show --id <selection-id>
+PYTHONPATH=src .venv/bin/python -m engineering_brain audio derive --selection-id <selection-id>
+PYTHONPATH=src .venv/bin/python -m engineering_brain audio derived-show --id <derived-audio-id>
 ```
 
 Run the test suite with:

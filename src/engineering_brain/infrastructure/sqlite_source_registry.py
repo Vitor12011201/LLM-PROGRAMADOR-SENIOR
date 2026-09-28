@@ -22,10 +22,11 @@ from engineering_brain.domain.models import (
     SourceArtifact,
     SubtitleStream,
     VideoStream,
+    TranscriptionRun, Transcript, TranscriptSegment, TranscriptionStatus,
 )
 
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 class SqliteSourceRegistryRepository:
@@ -53,6 +54,8 @@ class SqliteSourceRegistryRepository:
                             _migrate_phase_one_to_two(connection)
                         elif version == 2:
                             _migrate_phase_two_to_three(connection)
+                        elif version == 3:
+                            _migrate_phase_three_to_four(connection)
                         else:
                             raise RepositoryError(f"unsupported SQLite schema version: {version}")
                         connection.execute(f"PRAGMA user_version = {next_version}")
@@ -290,6 +293,62 @@ class SqliteSourceRegistryRepository:
             )
         )
 
+    def get_media_inspection(self, inspection_id: str) -> MediaInspection:
+        return _inspection(self._one("SELECT * FROM media_inspections WHERE id = ?", (inspection_id,), "media inspection", inspection_id))
+
+    def create_audio_selection(self, selection):
+        self._insert("INSERT INTO audio_selections (id, source_artifact_id, media_inspection_id, stream_index, policy, reason, selected_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (selection.id, selection.source_artifact_id, selection.media_inspection_id, selection.stream_index, selection.policy, selection.reason, _datetime(selection.selected_at)), "audio selection")
+
+    def find_audio_selection(self, artifact_id: str, inspection_id: str, stream_index: int):
+        rows = self._rows("SELECT * FROM audio_selections WHERE source_artifact_id = ? AND media_inspection_id = ? AND stream_index = ?", (artifact_id, inspection_id, stream_index))
+        return _audio_selection(rows[0]) if rows else None
+
+    def get_audio_selection(self, selection_id: str):
+        return _audio_selection(self._one("SELECT * FROM audio_selections WHERE id = ?", (selection_id,), "audio selection", selection_id))
+
+    def create_derived_audio_artifact(self, derived):
+        self._insert("INSERT INTO derived_audio_artifacts (id, audio_selection_id, managed_key, sha256, byte_size, extractor, extractor_version, derivation_schema_version, config_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (derived.id, derived.audio_selection_id, derived.managed_key, derived.sha256, derived.byte_size, derived.extractor, derived.extractor_version, derived.derivation_schema_version, derived.config_json, _datetime(derived.created_at)), "derived audio artifact")
+
+    def find_derived_audio_artifact(self, selection_id: str, extractor: str, version: str, schema: str, config_json: str):
+        rows = self._rows("SELECT * FROM derived_audio_artifacts WHERE audio_selection_id = ? AND extractor = ? AND extractor_version = ? AND derivation_schema_version = ? AND config_json = ?", (selection_id, extractor, version, schema, config_json))
+        return _derived_audio(rows[0]) if rows else None
+
+    def get_derived_audio_artifact(self, derived_id: str):
+        return _derived_audio(self._one("SELECT * FROM derived_audio_artifacts WHERE id = ?", (derived_id,), "derived audio artifact", derived_id))
+
+    def create_transcription_run(self, run: TranscriptionRun) -> None:
+        if run.status is not TranscriptionStatus.RUNNING:
+            raise RepositoryError("new transcription runs must start in the running state")
+        self._insert("INSERT INTO transcription_runs (id, derived_audio_artifact_id, engine, engine_version, model_id, model_revision, device, compute_type, config_json, requested_language, detected_language, language_probability, started_at, completed_at, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (run.id, run.derived_audio_artifact_id, run.engine, run.engine_version, run.model_id, run.model_revision, run.device, run.compute_type, run.config_json, run.requested_language, run.detected_language, run.language_probability, _datetime(run.started_at), _datetime(run.completed_at) if run.completed_at else None, run.status.value, run.error_message), "transcription run")
+
+    def find_equivalent_completed_transcription(self, derived_id, engine, version, model_id, revision, device, compute, config):
+        rows = self._rows("SELECT * FROM transcription_runs WHERE derived_audio_artifact_id=? AND engine=? AND engine_version=? AND model_id=? AND model_revision IS ? AND device IS ? AND compute_type IS ? AND config_json=? AND status='completed' ORDER BY completed_at DESC, id DESC LIMIT 1", (derived_id, engine, version, model_id, revision, device, compute, config))
+        return _run(rows[0]) if rows else None
+
+    def get_transcription_run(self, run_id): return _run(self._one("SELECT * FROM transcription_runs WHERE id=?", (run_id,), "transcription run", run_id))
+    def get_transcript_for_run(self, run_id): return _transcript(self._one("SELECT * FROM transcripts WHERE transcription_run_id=?", (run_id,), "transcript", run_id))
+    def segments_for_transcript(self, transcript_id): return [_segment(row) for row in self._rows("SELECT * FROM transcript_segments WHERE transcript_id=? ORDER BY ordinal", (transcript_id,))]
+    def mark_transcription_run_failed(self, run_id, message, completed_at):
+        with self._connection() as c:
+            result = c.execute("UPDATE transcription_runs SET status='failed', error_message=?, completed_at=? WHERE id=? AND status='running'", (message, _datetime(completed_at), run_id))
+            if result.rowcount != 1:
+                raise RepositoryError(f"could not mark transcription run failed from running state: {run_id}")
+    def complete_transcription_run(self, run_id, transcript: Transcript, segments: tuple[TranscriptSegment, ...], detected, probability, completed_at):
+        if transcript.transcription_run_id != run_id:
+            raise RepositoryError("transcript does not belong to the transcription run being completed")
+        if any(segment.transcript_id != transcript.id for segment in segments):
+            raise RepositoryError("all transcript segments must belong to the transcript being persisted")
+        try:
+            with self._connection() as c:
+                c.execute("BEGIN IMMEDIATE")
+                result = c.execute("UPDATE transcription_runs SET status='completed', detected_language=?, language_probability=?, completed_at=? WHERE id=? AND status='running'", (detected, probability, _datetime(completed_at), run_id))
+                if result.rowcount != 1:
+                    raise RepositoryError(f"could not complete transcription run from running state: {run_id}")
+                c.execute("INSERT INTO transcripts (id, transcription_run_id, language, full_text, created_at) VALUES (?, ?, ?, ?, ?)", (transcript.id, transcript.transcription_run_id, transcript.language, transcript.full_text, _datetime(transcript.created_at)))
+                for item in segments:
+                    c.execute("INSERT INTO transcript_segments (id, transcript_id, ordinal, start_seconds, end_seconds, text, avg_logprob, no_speech_prob, compression_ratio, temperature, words_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (item.id, item.transcript_id, item.ordinal, item.start_seconds, item.end_seconds, item.text, item.avg_logprob, item.no_speech_prob, item.compression_ratio, item.temperature, item.words_json))
+        except sqlite3.Error as exc: raise RepositoryError(f"could not persist transcription result: {exc}") from exc
+
     def _insert(self, query: str, values: tuple[object, ...], kind: str) -> None:
         try:
             with self._connection() as connection:
@@ -413,6 +472,11 @@ def _migrate_phase_two_to_three(connection: sqlite3.Connection) -> None:
     _create_current_indexes(connection)
 
 
+def _migrate_phase_three_to_four(connection: sqlite3.Connection) -> None:
+    for statement in _PHASE_FOUR_STATEMENTS:
+        connection.execute(statement)
+
+
 def _create_phase_two_schema(connection: sqlite3.Connection) -> None:
     for statement in _PHASE_TWO_STATEMENTS:
         connection.execute(statement)
@@ -448,6 +512,13 @@ _CURRENT_INDEX_STATEMENTS = (
 )
 _CURRENT_SCHEMA_STATEMENTS = (_AUTHORS, _SOURCES, _MATERIALS, _SOURCE_ARTIFACTS_V3, _ARTIFACT_OBSERVATIONS_V3, _MEDIA_INSPECTIONS_V3, *_CURRENT_INDEX_STATEMENTS)
 _PHASE_TWO_STATEMENTS = (_AUTHORS, _SOURCES, _MATERIALS, _MEDIA_INSPECTIONS_V3, "CREATE INDEX IF NOT EXISTS idx_sources_author_id ON sources(author_id)", "CREATE INDEX IF NOT EXISTS idx_materials_source_id ON materials(source_id)", _MEDIA_INSPECTIONS_INDEX)
+_AUDIO_SELECTIONS = "CREATE TABLE IF NOT EXISTS audio_selections (id TEXT PRIMARY KEY, source_artifact_id TEXT NOT NULL REFERENCES source_artifacts(id), media_inspection_id TEXT NOT NULL REFERENCES media_inspections(id), stream_index INTEGER NOT NULL, policy TEXT NOT NULL, reason TEXT NOT NULL, selected_at TEXT NOT NULL, UNIQUE(source_artifact_id, media_inspection_id, stream_index))"
+_DERIVED_AUDIO = "CREATE TABLE IF NOT EXISTS derived_audio_artifacts (id TEXT PRIMARY KEY, audio_selection_id TEXT NOT NULL REFERENCES audio_selections(id), managed_key TEXT NOT NULL, sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, extractor TEXT NOT NULL, extractor_version TEXT NOT NULL, derivation_schema_version TEXT NOT NULL, config_json TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(audio_selection_id, extractor, extractor_version, derivation_schema_version, config_json))"
+_TRANSCRIPTION_RUNS = "CREATE TABLE IF NOT EXISTS transcription_runs (id TEXT PRIMARY KEY, derived_audio_artifact_id TEXT NOT NULL REFERENCES derived_audio_artifacts(id), engine TEXT NOT NULL, engine_version TEXT NOT NULL, model_id TEXT NOT NULL, model_revision TEXT, device TEXT, compute_type TEXT, config_json TEXT NOT NULL, requested_language TEXT, detected_language TEXT, language_probability TEXT, started_at TEXT NOT NULL, completed_at TEXT, status TEXT NOT NULL, error_message TEXT)"
+_TRANSCRIPTS = "CREATE TABLE IF NOT EXISTS transcripts (id TEXT PRIMARY KEY, transcription_run_id TEXT NOT NULL UNIQUE REFERENCES transcription_runs(id), language TEXT, full_text TEXT NOT NULL, created_at TEXT NOT NULL)"
+_TRANSCRIPT_SEGMENTS = "CREATE TABLE IF NOT EXISTS transcript_segments (id TEXT PRIMARY KEY, transcript_id TEXT NOT NULL REFERENCES transcripts(id), ordinal INTEGER NOT NULL, start_seconds TEXT NOT NULL, end_seconds TEXT NOT NULL, text TEXT NOT NULL, avg_logprob TEXT, no_speech_prob TEXT, compression_ratio TEXT, temperature TEXT, words_json TEXT, UNIQUE(transcript_id, ordinal))"
+_PHASE_FOUR_STATEMENTS = (_AUDIO_SELECTIONS, _DERIVED_AUDIO, _TRANSCRIPTION_RUNS, _TRANSCRIPTS, _TRANSCRIPT_SEGMENTS, "CREATE INDEX IF NOT EXISTS idx_audio_selections_artifact_id ON audio_selections(source_artifact_id)", "CREATE INDEX IF NOT EXISTS idx_derived_audio_selection_id ON derived_audio_artifacts(audio_selection_id)", "CREATE INDEX IF NOT EXISTS idx_transcription_runs_derived_audio_id ON transcription_runs(derived_audio_artifact_id)")
+_CURRENT_SCHEMA_STATEMENTS = (*_CURRENT_SCHEMA_STATEMENTS, *_PHASE_FOUR_STATEMENTS)
 
 
 def _datetime(value: datetime) -> str:
@@ -478,3 +549,21 @@ def _observation(row: sqlite3.Row) -> ArtifactObservation:
 
 def _inspection(row: sqlite3.Row) -> MediaInspection:
     return MediaInspection(row["id"], row["artifact_id"], row["tool"], row["tool_version"], row["schema_version"], _parse_datetime(row["inspected_at"]), row["status"], MediaClassification(row["classification"]), tuple(json.loads(row["format_names_json"])), row["duration_seconds"], row["bit_rate"], row["stream_count"], tuple(VideoStream(**item) for item in json.loads(row["video_streams_json"])), tuple(AudioStream(**item) for item in json.loads(row["audio_streams_json"])), tuple(SubtitleStream(**item) for item in json.loads(row["subtitle_streams_json"])), row["raw_probe_json"])
+
+
+def _audio_selection(row):
+    from engineering_brain.domain.models import AudioSelection
+    return AudioSelection(row["id"], row["source_artifact_id"], row["media_inspection_id"], row["stream_index"], row["policy"], row["reason"], _parse_datetime(row["selected_at"]))
+
+
+def _derived_audio(row):
+    from engineering_brain.domain.models import DerivedAudioArtifact
+    return DerivedAudioArtifact(row["id"], row["audio_selection_id"], row["managed_key"], row["sha256"], row["byte_size"], row["extractor"], row["extractor_version"], row["derivation_schema_version"], row["config_json"], _parse_datetime(row["created_at"]))
+
+
+def _run(row):
+    return TranscriptionRun(row["id"], row["derived_audio_artifact_id"], row["engine"], row["engine_version"], row["model_id"], row["model_revision"], row["device"], row["compute_type"], row["config_json"], row["requested_language"], row["detected_language"], row["language_probability"], _parse_datetime(row["started_at"]), _parse_datetime(row["completed_at"]) if row["completed_at"] else None, TranscriptionStatus(row["status"]), row["error_message"])
+
+
+def _transcript(row): return Transcript(row["id"], row["transcription_run_id"], row["language"], row["full_text"], _parse_datetime(row["created_at"]))
+def _segment(row): return TranscriptSegment(row["id"], row["transcript_id"], row["ordinal"], row["start_seconds"], row["end_seconds"], row["text"], row["avg_logprob"], row["no_speech_prob"], row["compression_ratio"], row["temperature"], row["words_json"])
