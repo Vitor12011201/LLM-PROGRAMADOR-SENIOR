@@ -1,0 +1,2239 @@
+# ENGINEERING BRAIN — ARCHITECTURE PROMPT
+
+## 0. COMO ESTE DOCUMENTO DEVE SER USADO
+
+Este documento descreve a arquitetura, os princípios, os objetivos, as fronteiras e a filosofia técnica do projeto **Engineering Brain**.
+
+Ele deve ser tratado como uma referência arquitetural de alto nível para qualquer pessoa ou agente de IA que vá:
+
+* compreender o projeto;
+* revisar decisões arquiteturais;
+* propor novas funcionalidades;
+* implementar componentes;
+* refatorar código;
+* criar testes;
+* alterar o pipeline de treinamento;
+* integrar modelos;
+* adicionar novas fontes de conhecimento;
+* criar agentes;
+* construir interfaces;
+* alterar armazenamento;
+* modificar treinamento;
+* criar avaliações;
+* trabalhar no runtime do modelo.
+
+Este documento **não é uma especificação eterna e imutável**.
+
+A arquitetura pode evoluir quando surgirem:
+
+* evidências novas;
+* limitações técnicas reais;
+* resultados de experimentos;
+* problemas de performance;
+* novas necessidades;
+* modelos melhores;
+* novas ferramentas;
+* conclusões obtidas durante desenvolvimento.
+
+Porém, mudanças arquiteturais relevantes devem ser conscientes.
+
+Não substituir decisões apenas porque uma tecnologia nova parece interessante.
+
+Não introduzir frameworks, bancos, filas, serviços ou abstrações sem um problema concreto que justifique sua existência.
+
+Quando uma decisão arquitetural for alterada, este documento deve ser atualizado para representar o estado atual do sistema.
+
+O histórico de decisões antigas pode permanecer no Git.
+
+O documento deve representar:
+
+> a arquitetura vigente do projeto.
+
+---
+
+# 1. VISÃO DO PROJETO
+
+O Engineering Brain não é apenas um chatbot para programação.
+
+O objetivo do projeto é construir uma infraestrutura capaz de:
+
+1. consumir conhecimento técnico de engenheiros humanos;
+2. compreender esse conhecimento em profundidade;
+3. separar fatos, opiniões, heurísticas, princípios e trade-offs;
+4. estruturar esse conteúdo;
+5. criar uma base de conhecimento rastreável;
+6. transformar conhecimento em material de treinamento;
+7. formar modelos open-weight especializados em engenharia de software;
+8. avaliar sistematicamente esses modelos;
+9. permitir que os modelos pratiquem engenharia em ambientes controlados;
+10. utilizar a experiência acumulada para melhorar versões futuras;
+11. transformar o modelo treinado em um agente real de engenharia.
+
+A ambição de longo prazo é produzir algo próximo de:
+
+> um engenheiro de software artificial especializado, treinado a partir de uma formação técnica escolhida conscientemente.
+
+O objetivo NÃO é simplesmente ensinar uma IA a escrever código.
+
+Escrever código é apenas uma parte do trabalho.
+
+O projeto deve formar capacidades como:
+
+* compreensão de sistemas;
+* arquitetura;
+* debugging;
+* raciocínio sobre trade-offs;
+* design de software;
+* system design;
+* análise de código existente;
+* segurança;
+* performance;
+* testes;
+* manutenção;
+* confiabilidade;
+* simplicidade;
+* tomada de decisões técnicas;
+* avaliação de alternativas;
+* uso disciplinado de ferramentas;
+* reconhecimento de incerteza;
+* capacidade de questionar premissas ruins.
+
+O modelo deve aprender que:
+
+> código é consequência de decisões de engenharia.
+
+---
+
+# 2. FILOSOFIA CENTRAL
+
+O projeto adota a seguinte visão:
+
+> professores fornecem conhecimento;
+> currículo organiza conhecimento;
+> exercícios transformam conhecimento em prática;
+> treinamento altera comportamento;
+> experiência cria maturidade;
+> avaliações medem capacidade;
+> ferramentas permitem ação.
+
+Portanto:
+
+```text
+PROFESSORES
+    ↓
+CONHECIMENTO
+    ↓
+CURRÍCULO
+    ↓
+DATASET
+    ↓
+TREINAMENTO
+    ↓
+MODELO
+    ↓
+PRÁTICA
+    ↓
+EXPERIÊNCIA
+    ↓
+AVALIAÇÃO
+    ↓
+MODELO MELHOR
+```
+
+O sistema deve ser construído de maneira que cada uma dessas etapas possa evoluir independentemente.
+
+---
+
+# 3. O MODELO NÃO É O PROJETO
+
+Uma das decisões mais importantes desta arquitetura é:
+
+> o Engineering Brain não é um modelo específico.
+
+O modelo é somente um componente.
+
+O ativo principal do projeto é formado por:
+
+* biblioteca de fontes;
+* conhecimento estruturado;
+* proveniência;
+* currículo;
+* datasets;
+* avaliações;
+* histórico de treinamento;
+* experimentos;
+* experiência do agente;
+* ferramentas;
+* arquitetura do pipeline;
+* metodologia de formação.
+
+Isso significa que o projeto deve sobreviver à substituição do modelo-base.
+
+Por exemplo:
+
+```text
+Hoje:
+Qwen
+
+Amanhã:
+outro modelo open-weight
+
+Depois:
+outro modelo ainda melhor
+```
+
+A escola continua existindo.
+
+O currículo continua existindo.
+
+O dataset continua existindo.
+
+As avaliações continuam existindo.
+
+A experiência continua existindo.
+
+O novo aluno simplesmente passa pela mesma estrutura.
+
+---
+
+# 4. MODELO-BASE
+
+A primeira linha experimental deve utilizar um modelo open-weight que possa ser:
+
+* executado localmente;
+* adaptado;
+* treinado;
+* versionado;
+* quantizado;
+* exportado;
+* avaliado;
+* distribuído conforme sua licença.
+
+A preferência inicial é utilizar um modelo-base especializado em código.
+
+Um candidato inicial é:
+
+```text
+Qwen2.5-Coder-7B Base
+```
+
+A escolha não é definitiva.
+
+Ele é um modelo experimental inicial.
+
+A arquitetura NÃO pode depender exclusivamente dele.
+
+O sistema deve permitir futuramente comparar:
+
+```text
+Modelo A
+vs
+Modelo B
+vs
+Modelo C
+```
+
+usando os mesmos:
+
+* datasets;
+* currículos;
+* avaliações;
+* tarefas;
+* métricas.
+
+---
+
+# 5. BASE MODEL VS INSTRUCT MODEL
+
+Quando possível, os primeiros experimentos devem considerar modelos Base.
+
+Motivo:
+
+um modelo Instruct já recebeu forte pós-treinamento de terceiros.
+
+Um modelo Base oferece maior liberdade para experimentar:
+
+```text
+modelo de código
+        ↓
+nosso currículo
+        ↓
+nosso treinamento
+        ↓
+nosso comportamento
+```
+
+Entretanto, isso é uma preferência experimental, não uma regra absoluta.
+
+Se experimentos demonstrarem que modelos Instruct oferecem resultados melhores para determinado objetivo, eles podem ser utilizados.
+
+As decisões devem ser baseadas em avaliação.
+
+---
+
+# 6. TEACHER E STUDENT SÃO SISTEMAS DIFERENTES
+
+O sistema deve separar claramente dois papéis.
+
+## Teacher
+
+O Teacher é responsável por compreender fontes.
+
+Exemplos:
+
+* vídeos;
+* artigos;
+* livros;
+* papers;
+* documentação;
+* talks;
+* código;
+* commits;
+* issues;
+* post-mortems.
+
+O Teacher pode ser:
+
+* uma LLM local;
+* uma LLM externa;
+* um modelo multimodal;
+* uma combinação de modelos.
+
+Seu trabalho é:
+
+> compreender e estruturar conhecimento.
+
+O Teacher não é necessariamente o modelo que estamos treinando.
+
+---
+
+## Student
+
+O Student é o modelo que está sendo formado.
+
+Exemplo:
+
+```text
+Qwen Coder Base
+        ↓
+curriculum
+        ↓
+training
+        ↓
+Engineering Model v0.1
+```
+
+O Student deve ser capaz de existir independentemente do Teacher.
+
+Portanto:
+
+```text
+TEACHER != STUDENT
+```
+
+Essa separação é arquiteturalmente obrigatória.
+
+---
+
+# 7. LOCAL-FIRST, NÃO LOCAL-ONLY
+
+O projeto deve privilegiar execução local.
+
+Hardware inicial de referência:
+
+```text
+GPU:
+NVIDIA RTX 4060
+8 GB VRAM
+
+RAM:
+32 GB DDR4
+```
+
+Esse hardware deve ser suficiente para:
+
+* experimentação;
+* transcrição;
+* inferência de modelos pequenos;
+* embeddings;
+* RAG;
+* preparação de datasets;
+* LoRA;
+* QLoRA;
+* avaliações;
+* modelos aproximadamente na faixa de 3B–7B dependendo da configuração.
+
+Entretanto:
+
+> local-first não significa local-only.
+
+Se uma API externa oferecer melhor capacidade para uma tarefa específica, ela pode ser utilizada.
+
+Exemplo:
+
+um modelo multimodal muito forte pode ser utilizado como Teacher para compreender um vídeo difícil.
+
+O resultado dessa análise deve virar um artefato interno do projeto.
+
+Assim:
+
+```text
+modelo externo
+      ↓
+interpretação
+      ↓
+knowledge artifact
+      ↓
+dataset próprio
+      ↓
+modelo local
+```
+
+O Engineering Model final não deve ser arquiteturalmente dependente da API do Teacher.
+
+---
+
+# 8. PROFESSORES INICIAIS
+
+Os primeiros professores humanos pretendidos são:
+
+* Renato Augusto Tech;
+* Fabio Akita.
+
+Outros especialistas poderão ser adicionados no futuro.
+
+A arquitetura NÃO deve codificar professores individualmente.
+
+Não criar lógica como:
+
+```text
+if author == "Akita"
+```
+
+O sistema deve possuir uma abstração genérica de fonte.
+
+Por exemplo:
+
+```text
+AUTHOR
+    ↓
+SOURCE
+    ↓
+MATERIAL
+```
+
+Fontes futuras podem incluir:
+
+* vídeo;
+* podcast;
+* livro;
+* artigo;
+* paper;
+* documentação;
+* RFC;
+* código;
+* repositório;
+* commit;
+* pull request;
+* issue;
+* post-mortem;
+* palestra;
+* curso autorizado.
+
+---
+
+# 9. TIPOS DE FONTE POSSUEM DIFERENTES AUTORIDADES
+
+O sistema não deve considerar todas as fontes semanticamente equivalentes.
+
+Exemplo:
+
+```text
+opinião de um engenheiro
+≠
+documentação oficial
+≠
+paper científico
+≠
+commit real
+≠
+benchmark
+```
+
+Cada knowledge item deve carregar metadados sobre sua origem.
+
+Isso permitirá ao modelo distinguir:
+
+* evidência;
+* opinião;
+* experiência;
+* preferência;
+* documentação;
+* consenso;
+* hipótese;
+* observação.
+
+---
+
+# 10. SOURCE INGESTION
+
+O Source Ingestion é a camada responsável por introduzir material no sistema.
+
+Ela deve:
+
+* receber uma fonte;
+* identificar o tipo da fonte;
+* identificar o autor;
+* preservar o material original;
+* criar identificadores;
+* registrar metadados;
+* registrar versão;
+* calcular integridade quando necessário;
+* impedir duplicações;
+* manter rastreabilidade.
+
+Exemplo:
+
+```text
+Video #00041
+
+author:
+Fabio Akita
+
+title:
+...
+
+source:
+...
+
+duration:
+...
+
+ingestion date:
+...
+
+original artifact:
+...
+```
+
+Nenhuma etapa posterior deve apagar o original.
+
+---
+
+# 11. PRESERVAÇÃO DA FONTE
+
+A fonte original deve ser preservada.
+
+Regra:
+
+> interpretação nunca substitui evidência.
+
+O sistema deve poder voltar de uma decisão até a fonte original.
+
+Idealmente:
+
+```text
+MODEL BEHAVIOR
+      ↓
+TRAINING EXAMPLE
+      ↓
+CURRICULUM LESSON
+      ↓
+KNOWLEDGE CARD
+      ↓
+INTERPRETATION
+      ↓
+SOURCE SEGMENT
+      ↓
+ORIGINAL MATERIAL
+```
+
+Essa cadeia é chamada de:
+
+> provenance chain.
+
+Ela é parte central da arquitetura.
+
+---
+
+# 12. SOURCE UNDERSTANDING
+
+Um vídeo não deve ser tratado apenas como texto.
+
+A arquitetura deve considerar o vídeo como uma fonte multimodal.
+
+O Source Understanding deve poder analisar:
+
+```text
+VIDEO
+│
+├── AUDIO
+│   ├── speech
+│   ├── tone
+│   ├── pauses
+│   ├── emphasis
+│   ├── laughter
+│   └── possible sarcasm/irony
+│
+├── VISUAL
+│   ├── code
+│   ├── diagrams
+│   ├── terminal
+│   ├── slides
+│   ├── drawings
+│   └── text on screen
+│
+└── TRANSCRIPT
+    ├── words
+    ├── timestamps
+    └── context
+```
+
+O objetivo é compreender:
+
+> o que o autor quis comunicar.
+
+Não apenas:
+
+> quais palavras foram pronunciadas.
+
+---
+
+# 13. IRONIA E INTENÇÃO
+
+Uma exigência importante do projeto é tentar distinguir:
+
+* ironia;
+* sarcasmo;
+* crítica;
+* explicação;
+* exemplo;
+* exagero;
+* opinião;
+* recomendação;
+* alerta;
+* afirmação técnica.
+
+Exemplo:
+
+```text
+"Claro, coloca Kubernetes num sistema de 50 usuários."
+```
+
+Não deve automaticamente virar:
+
+```text
+RECOMMENDATION:
+Use Kubernetes.
+```
+
+O Source Understanding deve considerar:
+
+* contexto anterior;
+* contexto posterior;
+* entonação;
+* linguagem;
+* conteúdo visual;
+* intenção aparente.
+
+Quando houver incerteza, o sistema deve registrar incerteza.
+
+Nunca fingir certeza.
+
+---
+
+# 14. TRANSCRIÇÃO NÃO É CONHECIMENTO
+
+O sistema deve manter uma distinção explícita:
+
+```text
+SOURCE
+≠
+TRANSCRIPT
+≠
+INTERPRETATION
+≠
+KNOWLEDGE
+≠
+TRAINING DATA
+```
+
+Uma transcrição é somente uma representação textual da fala.
+
+Ela não deve ser usada diretamente como “verdade aprendida”.
+
+---
+
+# 15. KNOWLEDGE EXTRACTION
+
+Depois que uma fonte for compreendida, o sistema deve extrair conhecimento estruturado.
+
+Tipos iniciais:
+
+```text
+FACT
+PRINCIPLE
+HEURISTIC
+OPINION
+EXAMPLE
+WARNING
+ANTI_PATTERN
+TRADE_OFF
+MENTAL_MODEL
+PROCEDURE
+```
+
+Outros tipos podem surgir posteriormente.
+
+---
+
+# 16. KNOWLEDGE CARD
+
+A unidade básica do Knowledge Base deve ser a Knowledge Card.
+
+Uma Knowledge Card conceitualmente pode possuir:
+
+```text
+ID
+
+TYPE
+
+DOMAIN
+
+TOPIC
+
+CLAIM
+
+CONTEXT
+
+RATIONALE
+
+EXCEPTIONS
+
+COUNTEREXAMPLES
+
+RELATED_CONCEPTS
+
+SOURCE
+
+AUTHOR
+
+SOURCE_LOCATION
+
+CONFIDENCE
+
+AUDIT_STATUS
+```
+
+Exemplo:
+
+```text
+TYPE:
+HEURISTIC
+
+DOMAIN:
+Software Architecture
+
+CLAIM:
+Complexidade distribuída não deve ser introduzida sem necessidade concreta.
+
+RATIONALE:
+Distribuição cria novos modos de falha, coordenação, observabilidade e custo operacional.
+
+EXCEPTIONS:
+Existem contextos em que escala independente, isolamento ou boundaries organizacionais justificam distribuição.
+
+SOURCE:
+...
+
+TIMESTAMP:
+...
+```
+
+---
+
+# 17. OBSERVAÇÃO, INTERPRETAÇÃO E CONCLUSÃO
+
+O projeto deve preservar uma separação semelhante ao princípio:
+
+```text
+OBSERVED != INFERRED
+```
+
+Aplicado ao Engineering Brain:
+
+```text
+SOURCE
+!=
+INTERPRETATION
+!=
+KNOWLEDGE
+!=
+CONCLUSION
+```
+
+Isso significa:
+
+uma interpretação feita por uma IA não pode se passar pelo conteúdo literal da fonte.
+
+Metadados devem permitir identificar claramente:
+
+* o que foi dito;
+* o que foi interpretado;
+* o que foi inferido;
+* o que foi transformado em conhecimento.
+
+---
+
+# 18. KNOWLEDGE AUDITOR
+
+Nenhuma Knowledge Card deve ser automaticamente considerada confiável apenas porque uma LLM a criou.
+
+Uma etapa independente deve revisar a extração.
+
+O Auditor deve perguntar:
+
+* a afirmação realmente está na fonte?
+* houve perda de contexto?
+* uma opinião foi transformada em fato?
+* uma ironia foi entendida literalmente?
+* uma exceção foi removida?
+* a interpretação ficou mais absoluta que a fala original?
+* a fonte sustenta essa conclusão?
+* houve alucinação?
+* houve simplificação excessiva?
+* o material é relevante?
+
+Resultados possíveis:
+
+```text
+ACCEPT
+REVISE
+REJECT
+```
+
+Idealmente:
+
+```text
+Teacher
+!=
+Auditor
+```
+
+quando isso for economicamente e tecnicamente viável.
+
+---
+
+# 19. DIVERGÊNCIAS DEVEM SER PRESERVADAS
+
+Quando professores discordarem:
+
+```text
+Professor A → posição A
+Professor B → posição B
+```
+
+o sistema NÃO deve imediatamente decidir:
+
+```text
+verdade = A
+```
+
+ou:
+
+```text
+verdade = B
+```
+
+A divergência deve ser preservada.
+
+O sistema deve tentar capturar:
+
+* contexto;
+* premissas;
+* argumentos;
+* benefícios;
+* riscos;
+* trade-offs;
+* evidências;
+* situações onde cada posição faz sentido.
+
+Uma divergência pode ser mais valiosa para formar julgamento do que uma resposta única.
+
+---
+
+# 20. ENGINEERING KNOWLEDGE BASE
+
+Knowledge Cards aprovadas entram na Engineering Knowledge Base.
+
+Ela deve ser:
+
+* consultável;
+* versionada;
+* rastreável;
+* pesquisável;
+* auditável.
+
+O Knowledge Base deve alimentar dois sistemas diferentes:
+
+```text
+KNOWLEDGE BASE
+      │
+      ├── RAG
+      │
+      └── CURRICULUM BUILDER
+```
+
+---
+
+# 21. RAG
+
+O RAG permite ao Engineering Agent consultar conhecimento externo aos pesos.
+
+Isso serve para:
+
+* recuperar detalhes;
+* consultar fontes;
+* citar origem;
+* reduzir necessidade de memorizar tudo;
+* permitir conhecimento atualizado;
+* manter rastreabilidade.
+
+O RAG não substitui treinamento.
+
+Treinamento e RAG possuem funções diferentes.
+
+```text
+TRAINING
+→ muda comportamento interno.
+
+RAG
+→ fornece contexto externo.
+```
+
+O agente final provavelmente utilizará ambos.
+
+---
+
+# 22. CURRICULUM BUILDER
+
+O Curriculum Builder transforma conhecimento em formação organizada.
+
+O projeto não deve tratar ensino como um saco aleatório de exemplos.
+
+Deve existir progressão.
+
+Exemplo inicial:
+
+```text
+LEVEL 0 — FUNDAMENTOS
+
+algoritmos
+estrutura de dados
+memória
+processos
+sistemas operacionais
+arquitetura de computadores
+redes
+
+LEVEL 1 — SOFTWARE DESIGN
+
+abstração
+modularidade
+coupling
+cohesion
+interfaces
+testes
+refactoring
+
+LEVEL 2 — BACKEND
+
+HTTP
+APIs
+databases
+cache
+queues
+concurrency
+
+LEVEL 3 — SOFTWARE ARCHITECTURE
+
+monolith
+modular monolith
+distributed systems
+event-driven
+microservices
+
+LEVEL 4 — PRODUCTION ENGINEERING
+
+observability
+reliability
+performance
+deployment
+failure handling
+
+LEVEL 5 — SENIOR ENGINEERING
+
+trade-offs
+architecture review
+legacy systems
+migrations
+incident analysis
+technical decision making
+```
+
+Essa estrutura pode evoluir.
+
+---
+
+# 23. CONHECIMENTO NÃO É DATASET
+
+Regra:
+
+```text
+Knowledge Base != Training Dataset
+```
+
+Uma Knowledge Card representa conhecimento.
+
+O Dataset Factory transforma esse conhecimento em exercícios adequados ao treinamento.
+
+Uma única Knowledge Card pode gerar vários exemplos.
+
+Exemplo:
+
+```text
+knowledge:
+distributed systems introduce complexity
+```
+
+pode gerar:
+
+* pergunta conceitual;
+* cenário arquitetural;
+* code review;
+* comparação de propostas;
+* análise de trade-off;
+* debugging;
+* escolha entre alternativas.
+
+---
+
+# 24. DATASET FACTORY
+
+O Dataset Factory é responsável por gerar datasets especializados.
+
+Tipos iniciais:
+
+```text
+SFT
+PREFERENCE
+CODE REVIEW
+ARCHITECTURE
+DEBUGGING
+SYSTEM DESIGN
+REFACTORING
+SECURITY
+PERFORMANCE
+DECISION MAKING
+```
+
+---
+
+# 25. SFT
+
+Supervised Fine-Tuning deve ensinar:
+
+* formato de resposta;
+* decomposição de problemas;
+* metodologia;
+* padrões de decisão;
+* explicações;
+* comportamentos desejáveis;
+* raciocínio técnico observável.
+
+Exemplo:
+
+```text
+INPUT:
+Sistema com poucos usuários e equipe pequena.
+Devemos usar microservices?
+
+EXPECTED RESPONSE:
+Não aceitar automaticamente a premissa.
+Investigar necessidade, carga, boundaries, operação e custos antes de decidir.
+```
+
+---
+
+# 26. PREFERENCE DATA
+
+O sistema deve eventualmente possuir datasets de preferência.
+
+Exemplo:
+
+```text
+Resposta A:
+"Sim, use Kubernetes."
+
+Resposta B:
+"Ainda não há evidência de que Kubernetes seja necessário..."
+
+PREFERRED:
+B
+```
+
+Isso ensina julgamento.
+
+O objetivo não é apenas saber produzir respostas.
+
+É aprender a preferir respostas melhores.
+
+---
+
+# 27. TRAIN / VALIDATION / TEST
+
+Dados de treinamento e avaliação devem permanecer separados.
+
+```text
+TRAIN
+VALIDATION
+TEST
+```
+
+Nunca avaliar o modelo usando exemplos praticamente idênticos aos vistos durante treinamento.
+
+Devemos prevenir:
+
+* data leakage;
+* benchmark contamination;
+* memorização disfarçada de capacidade.
+
+---
+
+# 28. MODEL LAB
+
+O Model Lab é responsável por experimentos de treinamento.
+
+Ele deve gerenciar:
+
+* base model;
+* adapter;
+* dataset;
+* configuração;
+* seeds;
+* hyperparameters;
+* checkpoints;
+* resultados;
+* métricas;
+* versões.
+
+Inicialmente:
+
+```text
+LoRA
+QLoRA
+```
+
+são técnicas apropriadas devido ao hardware disponível.
+
+---
+
+# 29. VERSIONAMENTO DE MODELOS
+
+Nunca utilizar nomes como:
+
+```text
+modelo_final.gguf
+modelo_final2.gguf
+agora_vai.gguf
+```
+
+O sistema deve possuir versionamento formal.
+
+Exemplo:
+
+```text
+engineer-v0.0
+engineer-v0.1
+engineer-v0.2
+engineer-v0.3
+```
+
+Cada versão deve registrar:
+
+```text
+base model
+dataset version
+curriculum version
+training configuration
+adapter
+evaluation results
+knowledge snapshot
+training date
+code version
+```
+
+---
+
+# 30. MODEL REGISTRY
+
+O projeto deve possuir um Model Registry.
+
+Conceitualmente:
+
+```text
+BASE MODELS
+
+EXPERIMENTS
+
+ADAPTERS
+
+CHECKPOINTS
+
+EXPORTS
+
+EVALUATIONS
+```
+
+O modelo-base original nunca deve ser destruído ou sobrescrito.
+
+Derivados devem ser tratados como novas versões.
+
+---
+
+# 31. TREINAMENTO NÃO É CONTÍNUO AUTOMATICAMENTE
+
+O sistema pode ingerir conhecimento continuamente.
+
+Mas pesos NÃO devem ser alterados automaticamente.
+
+Fluxo correto:
+
+```text
+novas fontes
+↓
+knowledge extraction
+↓
+audit
+↓
+knowledge base
+↓
+dataset candidates
+
+STOP
+```
+
+Então uma decisão explícita cria:
+
+```text
+Curriculum Snapshot
+↓
+Dataset Version
+↓
+Training Run
+↓
+Candidate Model
+↓
+Evaluation
+↓
+Promotion ou Rejection
+```
+
+Isso evita:
+
+* regressões silenciosas;
+* aprendizado de conteúdo ruim;
+* mudanças imprevisíveis;
+* perda de comparabilidade.
+
+---
+
+# 32. PROMOTION DE MODELOS
+
+Uma nova versão não deve automaticamente substituir a anterior.
+
+Exemplo:
+
+```text
+engineer-v0.7
+        ↓
+evaluation
+        ↓
+
+melhor?
+        ↓
+
+sim → candidate for promotion
+
+não → reject
+```
+
+Regressões importantes devem impedir promoção.
+
+---
+
+# 33. ENGINEERING GYM
+
+Conhecimento teórico não é suficiente.
+
+O modelo deve praticar.
+
+O Engineering Gym oferece ambientes controlados contendo:
+
+* repositórios;
+* issues;
+* bugs;
+* testes;
+* requirements;
+* tarefas arquiteturais;
+* code review;
+* debugging;
+* refactoring.
+
+Fluxo:
+
+```text
+TASK
+↓
+AGENT
+↓
+INSPECT
+↓
+PLAN
+↓
+IMPLEMENT
+↓
+TEST
+↓
+DEBUG
+↓
+REVIEW
+↓
+RESULT
+```
+
+---
+
+# 34. EXPERIENCE STORE
+
+A trajetória do agente durante prática deve ser armazenada.
+
+Exemplos:
+
+* comandos utilizados;
+* arquivos lidos;
+* hipóteses;
+* alterações;
+* testes executados;
+* falhas;
+* regressões;
+* recuperação;
+* solução final.
+
+Essa experiência pode futuramente gerar novo material de treinamento.
+
+Assim:
+
+```text
+human knowledge
++
+artificial experience
+↓
+future training
+```
+
+---
+
+# 35. VERIFIERS
+
+Sempre que possível, resultados devem ser verificados por sistemas objetivos.
+
+Exemplos:
+
+```text
+tests
+build
+compiler
+linter
+static analysis
+benchmark
+security scanner
+expected output
+```
+
+LLMs também podem participar como evaluators, mas não devem substituir verificadores determinísticos quando estes existirem.
+
+---
+
+# 36. EVALUATION SUITE
+
+A qualidade do modelo não deve ser medida por uma única nota.
+
+Senioridade possui vários eixos.
+
+Avaliações iniciais devem considerar:
+
+```text
+CODE CORRECTNESS
+
+DEBUGGING
+
+CODE REVIEW
+
+ARCHITECTURE
+
+TRADE-OFF REASONING
+
+SIMPLICITY
+
+SYSTEM UNDERSTANDING
+
+TESTING
+
+SECURITY
+
+PERFORMANCE
+
+MAINTAINABILITY
+
+TOOL DISCIPLINE
+
+UNCERTAINTY MANAGEMENT
+```
+
+---
+
+# 37. TRÊS CAMADAS DE AVALIAÇÃO
+
+Separar:
+
+```text
+KNOWLEDGE TEST
+```
+
+Pergunta:
+
+> ele sabe o conceito?
+
+---
+
+```text
+ENGINEERING TEST
+```
+
+Pergunta:
+
+> ele sabe aplicar o conceito?
+
+---
+
+```text
+AGENT TEST
+```
+
+Pergunta:
+
+> ele consegue executar corretamente num sistema real?
+
+---
+
+# 38. MODELO NOVO VS MODELO ANTIGO
+
+Versões devem ser comparadas diretamente.
+
+Exemplo:
+
+```text
+Engineer v0.6
+vs
+Engineer v0.7
+```
+
+Usando:
+
+* mesmas tarefas;
+* mesmo ambiente;
+* mesmos critérios;
+* dados inéditos.
+
+Isso permite detectar:
+
+* melhoria;
+* regressão;
+* trade-offs entre versões.
+
+---
+
+# 39. RUNTIME
+
+O runtime não deve ser confundido com o modelo.
+
+Podemos utilizar:
+
+* LM Studio;
+* llama.cpp;
+* outro runtime compatível.
+
+Portanto:
+
+```text
+MODEL
+    ↓
+RUNTIME ADAPTER
+    ↓
+LM STUDIO / LLAMA.CPP / OUTRO
+```
+
+Trocar de runtime não deve exigir reconstruir o projeto.
+
+---
+
+# 40. LM STUDIO
+
+LM Studio pode ser utilizado como:
+
+* runtime local;
+* servidor de inferência;
+* interface de teste;
+* API local.
+
+Ele NÃO deve ser tratado como o lugar onde a inteligência do projeto vive.
+
+O modelo e os dados permanecem independentes.
+
+---
+
+# 41. ENGINEERING AGENT
+
+O estágio final utiliza o Engineering Model como cérebro de um agente.
+
+O agente combina:
+
+```text
+MODEL
++
+RAG
++
+PROJECT CONTEXT
++
+TOOLS
++
+MEMORY
+```
+
+Ele deve ser capaz de trabalhar sobre software.
+
+---
+
+# 42. CICLO OPERACIONAL DO AGENTE
+
+A metodologia preferida é:
+
+```text
+UNDERSTAND
+↓
+INVESTIGATE
+↓
+PLAN
+↓
+JUSTIFY
+↓
+IMPLEMENT
+↓
+TEST
+↓
+REVIEW
+```
+
+Evitar:
+
+```text
+PROMPT
+↓
+ESCREVER CÓDIGO IMEDIATAMENTE
+```
+
+---
+
+# 43. FERRAMENTAS DO AGENTE
+
+Ferramentas futuras podem incluir:
+
+```text
+read_file
+
+search_repository
+
+inspect_git_history
+
+read_documentation
+
+run_tests
+
+run_build
+
+run_linter
+
+run_static_analysis
+
+profile
+
+edit_file
+
+inspect_diff
+```
+
+Sempre com controle de permissões.
+
+---
+
+# 44. PRINCÍPIO DE MENOR PRIVILÉGIO
+
+O agente deve receber somente as capacidades necessárias.
+
+Não fornecer automaticamente:
+
+```text
+produção
+credentials
+arbitrary shell
+arbitrary SQL
+cloud credentials
+deployment access
+```
+
+quando não necessário.
+
+---
+
+# 45. AÇÕES HUMAN-GATED
+
+Ações importantes ou irreversíveis devem exigir autorização humana.
+
+Exemplos:
+
+```text
+commit
+push
+merge
+deploy
+production changes
+credential access
+email sending
+external communication
+repository deletion
+file destruction
+force push
+purchases
+```
+
+O agente pode preparar.
+
+O humano autoriza.
+
+---
+
+# 46. RELAÇÃO COM HERMES E STANDLOUD
+
+O Engineering Brain pode futuramente integrar o ecossistema STANDLOUD.
+
+Hermes pode atuar como:
+
+```text
+ORCHESTRATOR / MANAGER
+```
+
+Enquanto o Engineering Agent atua como:
+
+```text
+SOFTWARE ENGINEERING SPECIALIST
+```
+
+Exemplo:
+
+```text
+Hermes
+↓
+recebe objetivo
+↓
+Engineering Agent
+↓
+analisa repository
+↓
+propõe plano
+↓
+implementa em sandbox
+↓
+testa
+↓
+retorna resultado
+```
+
+As responsabilidades devem permanecer separadas.
+
+---
+
+# 47. SOURCE OF TRUTH
+
+No projeto final, estado importante deve possuir fonte da verdade explícita.
+
+Agentes não devem manter estado paralelo invisível.
+
+Exemplos de estado persistente:
+
+* sources;
+* interpretations;
+* knowledge;
+* datasets;
+* curriculum versions;
+* training runs;
+* model versions;
+* evaluations;
+* agent experiences.
+
+---
+
+# 48. ARMAZENAMENTO
+
+A primeira arquitetura deve permanecer simples.
+
+## Filesystem
+
+Para:
+
+* vídeos;
+* áudio;
+* frames;
+* datasets;
+* checkpoints;
+* models;
+* adapters;
+* exports;
+* artifacts.
+
+## Relational Database
+
+Para:
+
+* source metadata;
+* authors;
+* knowledge cards;
+* relationships;
+* training runs;
+* experiments;
+* evaluations;
+* versions;
+* audit metadata.
+
+## Vector Index
+
+Para:
+
+* semantic search;
+* RAG;
+* similarity.
+
+Não introduzir infraestrutura distribuída sem necessidade.
+
+---
+
+# 49. MONÓLITO MODULAR
+
+A implementação inicial deve preferir:
+
+> monólito modular.
+
+Não começar com:
+
+* microservices;
+* Kafka;
+* Kubernetes;
+* service mesh;
+* dezenas de containers.
+
+O volume inicial não justifica essa complexidade.
+
+Separar responsabilidades em módulos internos.
+
+Distribuir serviços somente quando surgir uma necessidade concreta.
+
+---
+
+# 50. LINGUAGENS DO SISTEMA
+
+Não existe obrigação de uma única linguagem.
+
+## Python
+
+Uso principal:
+
+* treinamento;
+* ML;
+* datasets;
+* experimentos;
+* model integration;
+* evaluation;
+* orchestration científica;
+* Transformers;
+* PyTorch;
+* PEFT;
+* TRL.
+
+Python é a linguagem de produtividade e pesquisa de ML.
+
+---
+
+## C++ / CUDA
+
+Uso possível:
+
+* inference runtime;
+* performance-critical code;
+* kernels;
+* quantization;
+* GPU operations;
+* memory optimization.
+
+Esses componentes devem ser introduzidos quando uma necessidade real justificar.
+
+---
+
+## C
+
+C possui valor especialmente para:
+
+* aprendizado;
+* fundamentos;
+* bindings específicos;
+* sistemas de baixo nível.
+
+Não deve ser utilizado artificialmente em componentes onde não traz benefício.
+
+---
+
+## TypeScript
+
+Pode ser utilizado futuramente para:
+
+* dashboard;
+* web UI;
+* interfaces de observabilidade.
+
+A interface não deve determinar a arquitetura interna do projeto.
+
+---
+
+# 51. NÃO OTIMIZAR PREMATURAMENTE
+
+Não reescrever um componente Python em C++ apenas porque C++ é mais rápido.
+
+Primeiro:
+
+```text
+measure
+↓
+profile
+↓
+identify bottleneck
+↓
+optimize
+```
+
+A otimização deve ser baseada em evidência.
+
+---
+
+# 52. OBSERVABILIDADE
+
+Todo pipeline importante deve produzir dados suficientes para entender o que ocorreu.
+
+Exemplos:
+
+```text
+Source Processing Run
+
+Knowledge Extraction Run
+
+Audit Run
+
+Dataset Build
+
+Training Run
+
+Evaluation Run
+
+Agent Task Run
+```
+
+Cada execução deve possuir:
+
+* ID;
+* timestamps;
+* config;
+* inputs;
+* outputs;
+* erros;
+* duração;
+* versão;
+* status.
+
+---
+
+# 53. REPRODUTIBILIDADE
+
+Experimentos devem ser reproduzíveis quando tecnicamente possível.
+
+Registrar:
+
+* code commit;
+* dataset version;
+* model version;
+* config;
+* seed;
+* dependencies;
+* environment;
+* hardware;
+* hyperparameters.
+
+---
+
+# 54. DASHBOARD
+
+Uma interface visual é desejável no futuro.
+
+Ela pode apresentar:
+
+```text
+VIDEOS STUDIED
+
+SOURCES
+
+KNOWLEDGE CARDS
+
+CURRICULUM COVERAGE
+
+MODEL VERSION
+
+TRAINING RUNS
+
+EVALUATIONS
+
+EXPERIMENTS
+
+ENGINEERING GYM RESULTS
+```
+
+Exemplo:
+
+```text
+Engineering Brain
+
+Model:
+Engineer v0.7
+
+Base:
+Qwen Coder
+
+Sources:
+428
+
+Knowledge Cards:
+12,842
+
+Architecture:
+████████
+
+Databases:
+██████
+
+Operating Systems:
+█████
+
+Networking:
+████
+```
+
+Entretanto:
+
+> dashboard não é prioridade inicial.
+
+Primeiro construir um sistema correto e observável.
+
+Depois construir visualização.
+
+---
+
+# 55. CONTINUAL LEARNING CONTROLADO
+
+O Knowledge Base pode crescer continuamente.
+
+Model training deve ser deliberado.
+
+Assim:
+
+```text
+continuous knowledge ingestion
+
+BUT
+
+controlled model training
+```
+
+Essa separação é obrigatória.
+
+---
+
+# 56. SEGURANÇA DO CONHECIMENTO
+
+Conhecimento de baixa confiança não deve possuir o mesmo peso que conhecimento altamente auditado.
+
+O sistema deve permitir representar:
+
+```text
+confidence
+source authority
+audit status
+contradictions
+uncertainty
+```
+
+---
+
+# 57. COPYRIGHT E LICENÇAS
+
+O projeto deve respeitar:
+
+* copyright;
+* licenças;
+* termos das fontes;
+* licenças dos modelos;
+* licenças dos datasets.
+
+Especialmente se o modelo ou dataset for futuramente:
+
+* publicado;
+* vendido;
+* distribuído;
+* hospedado comercialmente.
+
+Conteúdo de terceiros não deve ser simplesmente republicado em massa.
+
+A arquitetura deve preservar metadados sobre origem e licença quando disponíveis.
+
+---
+
+# 58. O MODELO DEVE APRENDER A NÃO SABER
+
+Um comportamento desejado é:
+
+> reconhecer ausência de informação.
+
+O modelo não deve sentir obrigação de responder tudo.
+
+Exemplo:
+
+```text
+"Não há informação suficiente para decidir."
+```
+
+pode ser a melhor resposta de engenharia.
+
+Isso deve ser treinado e avaliado.
+
+---
+
+# 59. EVITAR OVERENGINEERING
+
+Um dos objetivos do Engineering Brain é aprender que:
+
+> complexidade precisa justificar sua existência.
+
+Isso vale tanto para o modelo quanto para o próprio projeto.
+
+Antes de adicionar uma tecnologia, perguntar:
+
+```text
+qual problema resolve?
+
+qual custo introduz?
+
+já temos esse problema?
+
+tem solução mais simples?
+```
+
+---
+
+# 60. OBJETIVO FINAL
+
+O estágio avançado desejado é um sistema capaz de receber:
+
+```text
+"Implemente essa funcionalidade."
+```
+
+e responder através de um processo próximo a:
+
+```text
+1. Ler o repository.
+
+2. Entender arquitetura atual.
+
+3. Identificar stack.
+
+4. Ler documentação relevante.
+
+5. Entender requisitos.
+
+6. Identificar informações faltantes.
+
+7. Investigar código relacionado.
+
+8. Formular opções.
+
+9. Comparar trade-offs.
+
+10. Selecionar uma direção.
+
+11. Criar plano incremental.
+
+12. Alterar somente o necessário.
+
+13. Preservar funcionalidades existentes.
+
+14. Adicionar ou alterar testes.
+
+15. Executar testes.
+
+16. Executar build.
+
+17. Investigar falhas.
+
+18. Corrigir.
+
+19. Revisar diff.
+
+20. Explicar decisões.
+
+21. Informar limitações.
+
+22. Solicitar autorização antes de qualquer ação crítica.
+```
+
+Isso representa o engenheiro que queremos formar.
+
+---
+
+# 61. O QUE NÃO ESTAMOS TENTANDO CONSTRUIR
+
+O projeto NÃO é:
+
+* wrapper de API;
+* prompt gigante;
+* chatbot imitando influenciador;
+* autocomplete de código;
+* clone de Codex;
+* clone de Devin;
+* modelo que apenas reproduz frases de Akita ou Renato.
+
+Queremos extrair:
+
+```text
+mental models
+principles
+reasoning patterns
+trade-offs
+engineering methodology
+```
+
+e combiná-los com:
+
+```text
+prática
+feedback
+verification
+experience
+```
+
+---
+
+# 62. IDENTIDADE DO PROJETO
+
+A maneira mais precisa de definir o Engineering Brain atualmente é:
+
+> uma escola artificial de engenharia de software capaz de transformar conhecimento humano, documentação técnica e experiência prática em currículo, datasets, treinamento, avaliações e agentes de software especializados.
+
+O modelo é o aluno.
+
+Os especialistas são professores.
+
+As fontes são materiais didáticos.
+
+O Knowledge Base é a biblioteca.
+
+O Curriculum Builder é a grade.
+
+O Dataset Factory produz exercícios.
+
+O Model Lab é a sala de treinamento.
+
+O Engineering Gym é o estágio.
+
+A Evaluation Suite é a prova.
+
+O Model Registry acompanha a formação.
+
+O Engineering Agent é o engenheiro formado.
+
+---
+
+# 63. REGRA PARA FUTUROS AGENTES DE IA QUE TRABALHAREM NESTE REPOSITÓRIO
+
+Antes de propor mudanças relevantes:
+
+1. leia este documento;
+2. inspecione o estado real do repositório;
+3. identifique a fase atual do projeto;
+4. preserve decisões arquiteturais ainda válidas;
+5. diferencie decisão atual de ideia futura;
+6. não implemente tecnologia apenas porque aparece neste documento;
+7. confirme se o componente já existe;
+8. faça alterações incrementais;
+9. não invente arquivos ou módulos;
+10. não altere modelo-base, dataset, treinamento ou armazenamento sem necessidade clara;
+11. não execute treinamento caro automaticamente;
+12. não baixe grandes datasets automaticamente;
+13. não use créditos pagos sem autorização;
+14. não faça deploy;
+15. não faça push;
+16. não faça merge;
+17. não exponha secrets;
+18. não modifique produção sem autorização.
+
+Este documento descreve a direção.
+
+O repositório descreve o estado real.
+
+Quando houver divergência:
+
+> inspecione antes de assumir.
+
+---
+
+# 64. PRINCÍPIO FINAL
+
+Toda decisão futura deve responder à seguinte pergunta:
+
+> Isso ajuda a formar um engenheiro melhor ou estamos apenas adicionando tecnologia?
+
+Se a resposta for apenas:
+
+> “porque parece sofisticado”,
+
+a mudança provavelmente não pertence ao projeto.
+
+O objetivo não é construir a arquitetura mais complexa.
+
+O objetivo é construir:
+
+> a melhor máquina possível para formar, avaliar e aprimorar engenheiros de software artificiais.

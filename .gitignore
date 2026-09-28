@@ -1,0 +1,26 @@
+# Local Python environment and generated runtime data.
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+
+# The registry stores metadata here; original artifacts and future model data stay local.
+data/
+artifacts/
+models/
+checkpoints/
+*.db
+*.sqlite
+*.sqlite3
+
+# Tooling output.
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# Local editor metadata.
+.idea/
+.vscode/

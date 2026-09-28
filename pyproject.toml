@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "engineering-brain"
+version = "0.1.0"
+description = "Local-first provenance foundation for Engineering Brain"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.scripts]
+engineering-brain = "engineering_brain.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.unittest]
+start-directory = "tests"
