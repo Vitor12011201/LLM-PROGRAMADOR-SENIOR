@@ -114,28 +114,48 @@ class Material:
 @dataclass(frozen=True, slots=True)
 class SourceArtifact:
     id: str
-    original_location: str
     managed_key: str | None
     sha256: str
     byte_size: int
-    observed_at: datetime
-    original_filename: str | None = None
-    media_type: str | None = None
+    preserved_at: datetime
 
     def __post_init__(self) -> None:
         _required(self.id, "artifact id")
-        _required(self.original_location, "artifact original_location")
         if self.managed_key is not None:
             _required(self.managed_key, "artifact managed_key")
         if not _SHA256_PATTERN.fullmatch(self.sha256):
             raise ValidationError("artifact sha256 must be a lowercase SHA-256 digest")
         if self.byte_size < 0:
             raise ValidationError("artifact byte_size must not be negative")
+        _aware(self.preserved_at, "artifact preserved_at")
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactObservation:
+    id: str
+    material_id: str
+    artifact_id: str
+    original_location: str
+    original_filename: str | None
+    observed_at: datetime
+    media_type: str | None = None
+
+    def __post_init__(self) -> None:
+        _required(self.id, "artifact observation id")
+        _required(self.material_id, "artifact observation material_id")
+        _required(self.artifact_id, "artifact observation artifact_id")
+        _required(self.original_location, "artifact observation original_location")
         if self.original_filename is not None:
-            _required(self.original_filename, "artifact original_filename")
+            _required(self.original_filename, "artifact observation original_filename")
         if self.media_type is not None:
-            _required(self.media_type, "artifact media_type")
-        _aware(self.observed_at, "artifact observed_at")
+            _required(self.media_type, "artifact observation media_type")
+        _aware(self.observed_at, "artifact observation observed_at")
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactObservationRecord:
+    observation: ArtifactObservation
+    artifact: SourceArtifact
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,4 +251,4 @@ class MaterialRecord:
     material: Material
     source: Source
     author: Author | None
-    artifacts: tuple[SourceArtifact, ...]
+    artifact_observations: tuple[ArtifactObservationRecord, ...]

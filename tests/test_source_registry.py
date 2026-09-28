@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from engineering_brain.application.source_registry import SourceRegistryService
-from engineering_brain.domain.errors import ArtifactFileNotFoundError, DuplicateError, NotFoundError
+from engineering_brain.domain.errors import ArtifactFileNotFoundError, NotFoundError
 from engineering_brain.infrastructure.local_artifact_store import LocalArtifactStore
 from engineering_brain.infrastructure.sqlite_source_registry import SqliteSourceRegistryRepository
 
@@ -46,7 +46,7 @@ class SourceRegistryServiceTests(unittest.TestCase):
         artifact_path = self.root / "original.txt"
         artifact_path.write_bytes(b"evidence remains separate from interpretation")
 
-        artifact, reused = self.service.attach_local_artifact(material_id=material_id, path=artifact_path)
+        observation_record, reused = self.service.attach_local_artifact(material_id=material_id, path=artifact_path)
         reloaded = SourceRegistryService(
             SqliteSourceRegistryRepository(self.database_path), self.artifact_store
         ).show_material(material_id)
@@ -55,20 +55,23 @@ class SourceRegistryServiceTests(unittest.TestCase):
         self.assertEqual(reloaded.material.id, material_id)
         self.assertEqual(reloaded.source.kind, "documentation")
         self.assertEqual(reloaded.author.name, "Generic author")
-        self.assertEqual(reloaded.artifacts, (artifact,))
+        self.assertEqual(reloaded.artifact_observations, (observation_record,))
+        artifact = observation_record.artifact
+        observation = observation_record.observation
         self.assertEqual(artifact.sha256, "93ad299209d6bc19f33ddbd4dbb70c187a86ef2a6c8ba35aebc153a8553a295d")
-        self.assertEqual(artifact.original_location, artifact_path.absolute().as_uri())
-        self.assertEqual(artifact.original_filename, "original.txt")
+        self.assertEqual(observation.original_location, artifact_path.absolute().as_uri())
+        self.assertEqual(observation.original_filename, "original.txt")
         self.assertTrue(self.artifact_store.managed_path(artifact.managed_key).is_file())
 
-    def test_same_artifact_is_not_linked_twice_to_the_same_material(self) -> None:
+    def test_same_material_content_and_location_is_idempotent(self) -> None:
         material_id = self._register_material()
         artifact_path = self.root / "original.txt"
         artifact_path.write_text("same bytes", encoding="utf-8")
-        self.service.attach_local_artifact(material_id=material_id, path=artifact_path)
+        first, _ = self.service.attach_local_artifact(material_id=material_id, path=artifact_path)
+        second, reused = self.service.attach_local_artifact(material_id=material_id, path=artifact_path)
 
-        with self.assertRaises(DuplicateError):
-            self.service.attach_local_artifact(material_id=material_id, path=artifact_path)
+        self.assertTrue(reused)
+        self.assertEqual(first.observation.id, second.observation.id)
 
     def test_same_bytes_can_be_explicitly_reused_by_another_logical_material(self) -> None:
         first_material_id = self._register_material("First")
@@ -91,13 +94,54 @@ class SourceRegistryServiceTests(unittest.TestCase):
 
         self.assertFalse(first_reused)
         self.assertTrue(second_reused)
-        self.assertEqual(first_artifact.id, second_artifact.id)
+        self.assertEqual(first_artifact.artifact.id, second_artifact.artifact.id)
+
+    def test_same_content_for_different_materials_preserves_both_observations(self) -> None:
+        first_material_id = self._register_material("First")
+        source = self.repository.get_source(self.repository.get_material(first_material_id).source_id)
+        second_material = self.service.register_material(
+            source_id=source.id, kind="video", title="Second", origin="file://second"
+        )
+        first_path = self.root / "first" / "video.mp4"
+        second_path = self.root / "second" / "renamed.mp4"
+        first_path.parent.mkdir()
+        second_path.parent.mkdir()
+        first_path.write_bytes(b"one preserved binary")
+        second_path.write_bytes(b"one preserved binary")
+
+        first, _ = self.service.attach_local_artifact(material_id=first_material_id, path=first_path)
+        second, reused = self.service.attach_local_artifact(material_id=second_material.id, path=second_path)
+
+        self.assertTrue(reused)
+        self.assertEqual(first.artifact.id, second.artifact.id)
+        self.assertEqual(first.artifact.managed_key, second.artifact.managed_key)
+        self.assertEqual(first.observation.original_location, first_path.absolute().as_uri())
+        self.assertEqual(second.observation.original_location, second_path.absolute().as_uri())
+        self.assertEqual(first.observation.original_filename, "video.mp4")
+        self.assertEqual(second.observation.original_filename, "renamed.mp4")
+
+    def test_same_content_and_material_from_two_locations_creates_two_observations(self) -> None:
+        material_id = self._register_material()
+        first_path = self.root / "first.bin"
+        second_path = self.root / "second.bin"
+        first_path.write_bytes(b"same bytes, two observations")
+        second_path.write_bytes(b"same bytes, two observations")
+
+        first, _ = self.service.attach_local_artifact(material_id=material_id, path=first_path)
+        second, reused = self.service.attach_local_artifact(material_id=material_id, path=second_path)
+
+        self.assertTrue(reused)
+        self.assertEqual(first.artifact.id, second.artifact.id)
+        observations = self.service.show_material(material_id).artifact_observations
+        self.assertEqual(len(observations), 2)
+        self.assertEqual({item.observation.original_location for item in observations}, {first_path.absolute().as_uri(), second_path.absolute().as_uri()})
 
     def test_managed_copy_survives_removal_of_the_external_original(self) -> None:
         material_id = self._register_material()
         original = self.root / "external.pdf"
         original.write_bytes(b"preserved source evidence")
-        artifact, _ = self.service.attach_local_artifact(material_id=material_id, path=original)
+        artifact_record, _ = self.service.attach_local_artifact(material_id=material_id, path=original)
+        artifact = artifact_record.artifact
 
         original.unlink()
         verification = self.service.verify_artifact(artifact.id)
@@ -122,10 +166,10 @@ class SourceRegistryServiceTests(unittest.TestCase):
         second_artifact, reused = self.service.attach_local_artifact(material_id=second_material.id, path=second_path)
 
         self.assertTrue(reused)
-        self.assertEqual(first_artifact.id, second_artifact.id)
-        self.assertEqual(first_artifact.managed_key, second_artifact.managed_key)
+        self.assertEqual(first_artifact.artifact.id, second_artifact.artifact.id)
+        self.assertEqual(first_artifact.artifact.managed_key, second_artifact.artifact.managed_key)
         blobs = list((self.root / "managed-artifacts" / "sha256").glob("*/*"))
-        self.assertEqual(blobs, [self.artifact_store.managed_path(first_artifact.managed_key)])
+        self.assertEqual(blobs, [self.artifact_store.managed_path(first_artifact.artifact.managed_key)])
 
     def test_different_contents_produce_different_hashes_and_managed_blobs(self) -> None:
         first_material_id = self._register_material("First")
@@ -141,16 +185,17 @@ class SourceRegistryServiceTests(unittest.TestCase):
         first_artifact, _ = self.service.attach_local_artifact(material_id=first_material_id, path=first_path)
         second_artifact, _ = self.service.attach_local_artifact(material_id=second_material.id, path=second_path)
 
-        self.assertNotEqual(first_artifact.sha256, second_artifact.sha256)
-        self.assertNotEqual(first_artifact.managed_key, second_artifact.managed_key)
-        self.assertTrue(self.artifact_store.managed_path(first_artifact.managed_key).is_file())
-        self.assertTrue(self.artifact_store.managed_path(second_artifact.managed_key).is_file())
+        self.assertNotEqual(first_artifact.artifact.sha256, second_artifact.artifact.sha256)
+        self.assertNotEqual(first_artifact.artifact.managed_key, second_artifact.artifact.managed_key)
+        self.assertTrue(self.artifact_store.managed_path(first_artifact.artifact.managed_key).is_file())
+        self.assertTrue(self.artifact_store.managed_path(second_artifact.artifact.managed_key).is_file())
 
     def test_integrity_check_detects_a_corrupted_managed_blob(self) -> None:
         material_id = self._register_material()
         original = self.root / "evidence.txt"
         original.write_bytes(b"original content")
-        artifact, _ = self.service.attach_local_artifact(material_id=material_id, path=original)
+        artifact_record, _ = self.service.attach_local_artifact(material_id=material_id, path=original)
+        artifact = artifact_record.artifact
         managed_path = self.artifact_store.managed_path(artifact.managed_key)
 
         managed_path.chmod(0o644)
@@ -161,7 +206,7 @@ class SourceRegistryServiceTests(unittest.TestCase):
         self.assertFalse(verification.is_valid)
         self.assertNotEqual(verification.actual_sha256, artifact.sha256)
 
-    def test_phase_one_artifact_row_migrates_without_losing_original_location(self) -> None:
+    def test_phase_one_artifact_row_migrates_without_losing_content_identity(self) -> None:
         legacy_database = self.root / "legacy.sqlite3"
         with sqlite3.connect(legacy_database) as connection:
             connection.execute(
@@ -188,8 +233,8 @@ class SourceRegistryServiceTests(unittest.TestCase):
         migrated_repository.initialize()
         artifact = migrated_repository.get_artifact("legacy-artifact")
 
-        self.assertEqual(artifact.original_location, "file:///tmp/legacy-source.txt")
         self.assertIsNone(artifact.managed_key)
+        self.assertEqual(artifact.sha256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 
     def test_invalid_references_and_missing_files_produce_expected_errors(self) -> None:
         with self.assertRaises(NotFoundError):

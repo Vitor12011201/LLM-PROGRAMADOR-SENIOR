@@ -22,4 +22,4 @@ class DomainModelTests(unittest.TestCase):
 
     def test_artifact_requires_valid_sha256(self) -> None:
         with self.assertRaisesRegex(ValidationError, "sha256"):
-            SourceArtifact("artifact-1", "file:///tmp/example", "sha256/ba/bad", "bad", 1, self.now)
+            SourceArtifact("artifact-1", "sha256/ba/bad", "bad", 1, self.now)

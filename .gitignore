@@ -20,6 +20,9 @@ checkpoints/
 .mypy_cache/
 .ruff_cache/
 *.log
+build/
+dist/
+*.egg-info/
 
 # Local editor metadata.
 .idea/

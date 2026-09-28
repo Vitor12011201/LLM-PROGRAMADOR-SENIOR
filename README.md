@@ -30,6 +30,12 @@ directory can be overridden through `ENGINEERING_BRAIN_ARTIFACT_DIR`.
 storage. The source path is retained as provenance, but the stored copy remains
 available after the original is moved or removed.
 
+Each managed `SourceArtifact` identifies preserved bytes (SHA-256, byte size and
+managed key). Each attachment creates an `ArtifactObservation` for its Material,
+retaining the original path and filename. Identical content therefore shares one
+managed blob while retaining separate origins; repeating the same Material, bytes
+and original location is idempotent.
+
 If `ffprobe` is available locally, managed audio and video artifacts can be
 inspected deterministically. Inspection metadata is persisted separately from the
 source evidence; it does not transcribe or interpret the media.

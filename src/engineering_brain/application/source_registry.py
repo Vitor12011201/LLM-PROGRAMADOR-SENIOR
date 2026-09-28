@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from engineering_brain.domain.models import (
     ArtifactVerification,
+    ArtifactObservation,
+    ArtifactObservationRecord,
     Author,
     Material,
     MaterialRecord,
@@ -82,20 +84,26 @@ class SourceRegistryService:
 
     def attach_local_artifact(
         self, *, material_id: str, path: Path, media_type: str | None = None
-    ) -> tuple[SourceArtifact, bool]:
+    ) -> tuple[ArtifactObservationRecord, bool]:
         self._repository.get_material(material_id)
         stored = self._artifact_store.ingest(path)
         candidate = SourceArtifact(
             id=self._id_factory(),
-            original_location=stored.original_location,
             managed_key=stored.managed_key,
             sha256=stored.sha256,
             byte_size=stored.byte_size,
-            observed_at=self._clock(),
+            preserved_at=self._clock(),
+        )
+        observation = ArtifactObservation(
+            id=self._id_factory(),
+            material_id=material_id,
+            artifact_id=candidate.id,
+            original_location=stored.original_location,
             original_filename=stored.original_filename,
+            observed_at=self._clock(),
             media_type=media_type,
         )
-        return self._repository.attach_artifact(material_id, candidate)
+        return self._repository.attach_artifact(candidate, observation)
 
     def verify_artifact(self, artifact_id: str) -> ArtifactVerification:
         artifact = self._repository.get_artifact(artifact_id)
@@ -130,7 +138,7 @@ class SourceRegistryService:
         material = self._repository.get_material(material_id)
         source = self._repository.get_source(material.source_id)
         author = self._repository.get_author(source.author_id) if source.author_id else None
-        return MaterialRecord(material, source, author, tuple(self._repository.artifacts_for_material(material_id)))
+        return MaterialRecord(material, source, author, tuple(self._repository.observations_for_material(material_id)))
 
     def list_materials(self) -> list[Material]:
         return self._repository.list_materials()

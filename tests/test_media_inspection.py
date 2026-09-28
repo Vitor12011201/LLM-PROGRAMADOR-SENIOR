@@ -13,6 +13,7 @@ from engineering_brain.domain.errors import (
     MediaInspectorExecutionError,
     MediaInspectorOutputError,
     MediaInspectorTimeoutError,
+    MediaInspectorUnavailableError,
 )
 from engineering_brain.application.media_normalization import normalize_probe
 from engineering_brain.infrastructure.ffprobe_media_inspector import FfprobeMediaInspector
@@ -56,7 +57,7 @@ class MediaInspectionTests(unittest.TestCase):
         external = self.root / "external.bin"
         external.write_bytes(b"managed media candidate")
         artifact, _ = self.registry.attach_local_artifact(material_id=material.id, path=external)
-        return artifact.id
+        return artifact.artifact.id
 
     def test_parser_normalizes_audio_video_multiple_tracks_and_subtitles(self) -> None:
         normalized = normalize_probe(_audio_video_payload())
@@ -114,6 +115,24 @@ class MediaInspectionTests(unittest.TestCase):
 
 
 class FfprobeAdapterTests(unittest.TestCase):
+    def test_identity_is_cached_between_explicit_lookup_and_inspection(self) -> None:
+        completed = [
+            CompletedProcess(["ffprobe", "-version"], 0, "ffprobe version test\n", ""),
+            CompletedProcess(["ffprobe"], 0, '{"format": {}, "streams": []}', ""),
+        ]
+        with patch("engineering_brain.infrastructure.ffprobe_media_inspector.subprocess.run", side_effect=completed) as run:
+            inspector = FfprobeMediaInspector()
+            self.assertEqual(inspector.tool_identity(), ("ffprobe", "ffprobe version test"))
+            inspector.inspect(Path("artifact"))
+
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[0].args[0], ["ffprobe", "-version"])
+
+    def test_unavailable_ffprobe_is_reported_clearly(self) -> None:
+        with patch("engineering_brain.infrastructure.ffprobe_media_inspector.subprocess.run", side_effect=FileNotFoundError):
+            with self.assertRaises(MediaInspectorUnavailableError):
+                FfprobeMediaInspector().tool_identity()
+
     def test_invalid_json_is_reported_clearly(self) -> None:
         completed = [
             CompletedProcess(["ffprobe", "-version"], 0, "ffprobe version test\n", ""),
@@ -140,6 +159,26 @@ class FfprobeAdapterTests(unittest.TestCase):
             side_effect=subprocess.TimeoutExpired(["ffprobe", "-version"], 30),
         ):
             with self.assertRaises(MediaInspectorTimeoutError):
+                FfprobeMediaInspector().inspect(Path("artifact"))
+
+    def test_media_inspection_timeout_is_reported_clearly(self) -> None:
+        import subprocess
+
+        completed = [
+            CompletedProcess(["ffprobe", "-version"], 0, "ffprobe version test\n", ""),
+            subprocess.TimeoutExpired(["ffprobe"], 30),
+        ]
+        with patch("engineering_brain.infrastructure.ffprobe_media_inspector.subprocess.run", side_effect=completed):
+            with self.assertRaises(MediaInspectorTimeoutError):
+                FfprobeMediaInspector().inspect(Path("artifact"))
+
+    def test_non_object_json_root_is_reported_clearly(self) -> None:
+        completed = [
+            CompletedProcess(["ffprobe", "-version"], 0, "ffprobe version test\n", ""),
+            CompletedProcess(["ffprobe"], 0, "[]", ""),
+        ]
+        with patch("engineering_brain.infrastructure.ffprobe_media_inspector.subprocess.run", side_effect=completed):
+            with self.assertRaisesRegex(MediaInspectorOutputError, "root must be an object"):
                 FfprobeMediaInspector().inspect(Path("artifact"))
 
 

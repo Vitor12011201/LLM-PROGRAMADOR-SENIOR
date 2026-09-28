@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from engineering_brain.domain.models import Author, Material, Source, SourceArtifact
+from engineering_brain.domain.models import ArtifactObservation, ArtifactObservationRecord, Author, Material, Source, SourceArtifact
 
 
 class SourceRegistryRepository(Protocol):
@@ -24,6 +24,8 @@ class SourceRegistryRepository(Protocol):
 
     def get_artifact(self, artifact_id: str) -> SourceArtifact: ...
 
-    def attach_artifact(self, material_id: str, artifact: SourceArtifact) -> tuple[SourceArtifact, bool]: ...
+    def attach_artifact(
+        self, artifact: SourceArtifact, observation: ArtifactObservation
+    ) -> tuple[ArtifactObservationRecord, bool]: ...
 
-    def artifacts_for_material(self, material_id: str) -> list[SourceArtifact]: ...
+    def observations_for_material(self, material_id: str) -> list[ArtifactObservationRecord]: ...

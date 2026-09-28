@@ -10,7 +10,7 @@ from engineering_brain.application.media_inspection import MediaInspectionServic
 from engineering_brain.config import Settings
 from engineering_brain.domain.errors import RegistryError, ValidationError
 from engineering_brain.domain.models import (
-    ArtifactVerification, AudioStream, Author, MediaInspection, Material, MaterialRecord, Source, SourceArtifact,
+    ArtifactObservationRecord, ArtifactVerification, AudioStream, Author, MediaInspection, Material, MaterialRecord, Source, SourceArtifact,
     SubtitleStream, VideoStream,
 )
 from engineering_brain.infrastructure.ffprobe_media_inspector import FfprobeMediaInspector
@@ -118,10 +118,10 @@ def _dispatch(
         return {"materials": [_material_to_dict(item) for item in service.list_materials()]}
     if arguments.action == "show":
         return _record_to_dict(service.show_material(arguments.id))
-    artifact, reused = service.attach_local_artifact(
+    observation, reused = service.attach_local_artifact(
         material_id=arguments.material_id, path=Path(arguments.path), media_type=arguments.media_type
     )
-    result = _artifact_to_dict(artifact)
+    result = _artifact_observation_to_dict(observation)
     result["reused_existing_artifact"] = reused
     return result
 
@@ -160,14 +160,20 @@ def _material_to_dict(material: Material) -> dict[str, object]:
 def _artifact_to_dict(artifact: SourceArtifact) -> dict[str, object]:
     return {
         "id": artifact.id,
-        "original_location": artifact.original_location,
-        "original_filename": artifact.original_filename,
         "managed_artifact": artifact.managed_key,
         "sha256": artifact.sha256,
         "byte_size": artifact.byte_size,
-        "observed_at": artifact.observed_at.isoformat(),
-        "media_type": artifact.media_type,
+        "preserved_at": artifact.preserved_at.isoformat(),
     }
+
+
+def _artifact_observation_to_dict(record: ArtifactObservationRecord) -> dict[str, object]:
+    observation = record.observation
+    return {"artifact": _artifact_to_dict(record.artifact), "observation": {
+        "id": observation.id, "material_id": observation.material_id,
+        "original_location": observation.original_location, "original_filename": observation.original_filename,
+        "media_type": observation.media_type, "observed_at": observation.observed_at.isoformat(),
+    }}
 
 
 def _verification_to_dict(verification: ArtifactVerification) -> dict[str, object]:
@@ -228,5 +234,5 @@ def _record_to_dict(record: MaterialRecord) -> dict[str, object]:
         "material": _material_to_dict(record.material),
         "source": _source_to_dict(record.source),
         "author": _author_to_dict(record.author) if record.author else None,
-        "artifacts": [_artifact_to_dict(item) for item in record.artifacts],
+        "artifacts": [_artifact_observation_to_dict(item) for item in record.artifact_observations],
     }
